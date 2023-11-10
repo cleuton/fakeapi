@@ -1,0 +1,62 @@
+delete qualquer pvc pré-existente antes de instalar o postgres!
+kubectl get pvc
+
+helm install my-postgres \
+--set image.tag=13.12.0 \
+--set image.pullPolicy=IfNotPresent \
+--set global.postgresql.auth.postgresPassword=password \
+--set auth.database=kong \
+--set auth.username=kong \
+--set auth.password=kong \
+--set persistence.enabled=false \
+bitnami/postgresql
+
+helm install kong \
+--set kong.enabled=false \
+--set ingressController.enabled=true \
+--set image.tag=3.0 \
+--set env.database=postgres \
+--set postgresql.enabled=false \
+--set env.pg_host=my-postgres-postgresql \
+--set env.pg_database=kong \
+--set env.pg_user=kong \
+--set env.pg_password=kong \
+--set admin.useTLS=false \
+--set readinessProbe.httpGet.scheme=HTTP \
+--set livenessProbe.httpGet.scheme=HTTP \
+kong/ingress
+
+
+
+kubectl run my-postgres-postgresql-client --rm --tty -i --restart='Never' --namespace default --image docker.io/bitnami/postgresql:13.12.0 --env="PGPASSWORD=$POSTGRES_PASSWORD" \
+      --command -- psql --host my-postgres-postgresql -U kong -d kong -p 5432
+
+export POSTGRES_PASSWORD=$(kubectl get secret --namespace default my-postgres-postgresql -o jsonpath="{.data.password}" | base64 -d)  
+
+
+helm install kong \
+--set database=postgresql \
+--set service.type=LoadBalancer \
+--set service.exposeAdmin=true \
+--set ingress.enabled=true \
+--set ingressController.enabled=true \
+--set postgresql.enabled=true \
+--set postgresql.auth.postgresPassword=password \
+--set postgresql.auth.database=kong \
+--set postgresql.auth.username=kong \
+--set postgresql.auth.password=kong \
+bitnami/kong
+
+
+kubectl get svc
+anote as portas externas do serviço kong
+
+export PROXY_IP=$(minikube service kong --url | head -1)
+
+kubectl get svc
+anote as portas externas do serviço kong
+
+export CLUSTER_IP=$(minikube ip)
+
+curl -d "username=fulano&custom_id=123" http://$CLUSTER_IP:30390/consumers/
+{"tags":null,"id":"a88c5ed6-bc0d-4bd2-89f9-775881595791","username":"fulano","created_at":1699562716,"updated_at":1699562716,"custom_id":"123"}

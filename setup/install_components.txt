@@ -1,0 +1,68 @@
+1) Instalar Docker
+2) Instalar Minikube
+3) Associar Kubectl: alias kubectl="minikube kubectl --"
+4) Instalar Helm: 
+- curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+
+5) Instalar KIC:
+- helm repo add bitnami https://charts.bitnami.com/bitnami
+- helm repo add kong https://charts.konghq.com
+- helm repo update
+
+helm install kong \
+--set database=postgresql \
+--set service.exposeAdmin=true \
+--set ingressController.enabled=true \
+--set postgresql.enabled=true \
+--set postgresql.auth.postgresPassword=password \
+--set postgresql.auth.database=kong \
+--set postgresql.auth.username=kong \
+--set postgresql.auth.password=kong \
+bitnami/kong
+
+5) Build do fakeservice: 
+- cd fakeservice
+- eval $(minikube docker-env)
+- docker build -t fake/fake:0.0.1 .
+- kubectl apply -f deploy-fake.yml
+
+
+
+6) Acessar a API: 
+- kubectl port-forward svc/kong 8080:8001
+- criar um consumer (usuário): 
+    curl -d "username=fulano&custom_id=123" http://localhost:8080/consumers/
+
+- Criar rotas para register e key: 
+    - kubectl apply -f fakeservice/proxy-calls-using-kong.yml
+
+- Criar usuário com fakeservice: 
+
+    - curl --header "Content-Type: application/json" -d '{"username":"teste","password":"teste"}' $PROXY_IP/register
+
+- Obter uma API-KEY: 
+
+    - curl --header "Content-Type: application/json" -d '{"username":"teste","password":"teste"}' $PROXY_IP/key
+
+- Acessar com a API-KEY: 
+
+    - curl $PROXY_IP/foo?apikey=pZAkZarc0AzNBTfzNWyWdZmfbB0y6Bsy
+
+7) Test service: 
+- Apontar para o cliente do minikube: eval $(minikube podman-env)
+- Compilar a imagem: docker build -t fake/fake .
+- Subir o serviço: kubectl apply -f fakeservice/deploy-fake.yml
+- kubectl port-forward service/fake-service 5000:5000
+
+8) Configurando o KIC: 
+- Pegar o CLUSTER_IP: export PROXY_IP=$(minikube service kong --url | head -1)
+- Expor via kong proxy: kubectl apply -f fakeservice/proxy-calls-using-kong.yml (depois delete isso)
+- Carregar o plugin apikey-auth: 
+    - kubectl apply -f carregar-plugin-apikey-auth.yml
+- Crie um ingress resource utilizando o plugin e associe-o à url: 
+    - kubectl apply -f ingress-apikey.yml
+
+- criar API-KEY: 
+    - curl -i -X POST --url http://$CLUSTER_IP:30390/consumers/fulano/key-auth --data 'key=345ABC0'
+
