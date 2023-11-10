@@ -5,7 +5,9 @@ app = Flask(__name__)
 
 @app.route('/foo', methods = ['GET'])
 def hello():
-    return '{"msg":"Hello from the foo microservice"}'
+    username = request.headers.get('X-Consumer-Username')
+    msg = f"Username: {username} - Bem vindo ao nosso fake service"
+    return '{"msg":"' + msg + '"}'
 
 @app.route('/register', methods = ['POST'])
 def register():
